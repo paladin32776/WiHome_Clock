@@ -64,3 +64,5 @@ unsigned const char type[] = {//Time HH MM ss:
                               MultiDisp7::SMALL,MultiDisp7::SMALL,MultiDisp7::SMALL,MultiDisp7::SMALL
                              };
 unsigned const char subdigit[] = {0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1};
+
+#define CCS811_ADDR 0x5A // CCS811 default I2C address
