@@ -12,7 +12,7 @@
 #include "CCS811.h"
 #include "BH1750.h"
 
-WiHomeComm whc;
+WiHomeComm whc(false); // argument turns WiHome UDP communication with WiHome hub off
 
 SignalLED led(PIN_LED,SLED_BLINK_FAST_1,PIN_LED_ACTIVE_LOW);
 NoBounceButtons nbb;
@@ -22,18 +22,18 @@ bool led_status=false;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 time_t t, t_last;
-//
+
+// Object for display:
 MultiDisp7 m7(display_count, addr, type, subdigit);
-//
-// CCS811 ccs811(CCS811_ADDR);
-// int CO2=0, TVOC=0;
+
+// Objects and variables for sensors:
 HDC1080 hdc;
 float T,RH;
-EnoughTimePassed etp_hdc(1000);
-unsigned int CO2, TVOC;
 CCS811 ccs;
-unsigned int LX, LX_dim;
+unsigned int CO2, TVOC;
 BH1750 bh;
+unsigned int LX, LX_dim;
+
 
 void setup()
 {
@@ -58,9 +58,8 @@ void setup()
 
 void loop()
 {
-  DynamicJsonBuffer jsonBuffer;
   // Handling routines for various libraries used:
-  JsonObject& root = whc.check(&jsonBuffer);
+  whc.check();
   nbb.check();
   led.check();
 
