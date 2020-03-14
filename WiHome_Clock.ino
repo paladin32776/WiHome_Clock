@@ -17,7 +17,6 @@ WiHomeComm whc(false); // argument turns WiHome UDP communication with WiHome hu
 SignalLED led(PIN_LED,SLED_BLINK_FAST_1,PIN_LED_ACTIVE_LOW);
 NoBounceButtons nbb;
 char button;
-bool led_status=false;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
@@ -37,18 +36,22 @@ unsigned int LX, LX_dim;
 
 void setup()
 {
+  // Setting up serial port if SERIAL_DEBUG flag is set to true:
   if (SERIAL_DEBUG)
     Serial.begin(115200);
   else
     Serial.end();
   Serial.println();
   delay(100);
+  // Telling WiHomeComm library which led (library SignaleLED) to use as status led:
+  whc.set_status_led(&led);
+  // Creating debounced button input on pin PIN_BUTTON:
   button = nbb.create(PIN_BUTTON);
-
+  // Set 7-Segment display to 100% brightness, overwire all digits with spaces, and then write "boot":
   m7.dim(100);
   m7.print("                    ");
   m7.print("boot");
-
+  // Set internal clock and timezone:
   timeClient.begin();
   timeClient.setTimeOffset(-5*3600); // Easter Timezone in the U.S.: GMT-5h
   t_last = timeClient.getEpochTime();
@@ -100,18 +103,6 @@ void loop()
     m7.print(s);
   }
 
-  // Logic for LED status display:
-  if (whc.status()==1)
-    led.set(led_status?SLED_ON:SLED_OFF);
-  else if (whc.status()==2)
-    led.set(SLED_BLINK_FAST_3);
-  else if (whc.status()==3)
-    led.set(SLED_BLINK_FAST_1);
-  else if (whc.status()==4)
-    led.set(SLED_BLINK_SLOW);
-  else
-    led.set(SLED_BLINK_FAST);
-
   // React to button actions:
   if (nbb.action(button)==2)
   {
@@ -122,12 +113,9 @@ void loop()
   }
   if (nbb.action(button)==1)
   {
-    Serial.printf("button action 1\nled_status=%d ==> ",led_status);
+    Serial.printf("button action 1\n");
     if (whc.softAPmode==true)
       whc.softAPmode=false;
-    else
-      led_status = !led_status;
-    Serial.printf("%d\n",led_status);
     nbb.reset(button);
   }
 }
