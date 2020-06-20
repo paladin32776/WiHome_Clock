@@ -14,6 +14,8 @@
 #include "SparkFunBME280.h"
 #include "BH1750.h"
 
+#define TIMEZONE_OFFSET 1
+
 WiHomeComm whc(false); // argument turns WiHome UDP communication with WiHome hub off
 
 
@@ -71,16 +73,30 @@ void setup()
   m7.print("boot");
   // Set internal clock and timezone:
   timeClient.begin();
-  timeClient.setTimeOffset(2*3600); // Mitteleuropäische Sommerzeit
+  // timeClient.setTimeOffset(2*3600); // Mitteleuropäische Sommerzeit
   t_last = timeClient.getEpochTime();
 
+}
+
+bool DST(time_t t)
+{
+  bool lastweekinMarch = ( month(t)==3 ) && ( day(t)+(8-weekday(t))>31 );
+  bool notlastweekinOctober = ( month(t)==10 ) && ( day(t)+(8-weekday(t))<31 );
+
+  bool isDST = ( month(t)>3 && month(t)<10 ) ||
+               ( month(t)==3 && lastweekinMarch && weekday(t)>1 ) ||
+               ( month(t)==3 && lastweekinMarch && weekday(t)==1 && hour(t)>=1 ) ||
+               ( month(t)==10 && notlastweekinOctober ) ||
+               ( month(t)==10 && ~notlastweekinOctober && weekday(t)==1 && hour(t)<1 );
+
+  return isDST;
 }
 
 
 void loop()
 {
   char s[20];
-  
+
   // Handling routines for various libraries used:
   whc.check();
   nbb.check();
@@ -93,17 +109,22 @@ void loop()
   }
   t = timeClient.getEpochTime();
 
+  // Accouting for timezone and DST
+  t += TIMEZONE_OFFSET*3600;
+  if (DST(t))
+    t += 3600;
+
   if (t!=t_last)
   {
     t_last = t;
     etp_blink.event();
-    
+
     LX = bh.read();
     LX_dim = LX*0.4+1;//Pink 0.2  Blau 0.7 Grün 0.5 Hellgrün 0.2 Gelb 0.1 Orange 0.2 Rot 0.7
     if (LX_dim>255)
       LX_dim=255;
     m7.dim(LX_dim);
-    
+
     if (etp_sensors.enough_time())
     {
 //      hdc.read(&T, &RH);
@@ -119,12 +140,12 @@ void loop()
 //      ccs.set_env_data(T, RH);
 //      ccs.read(&CO2, &TVOC);
     }
-    
+
     if (whc.status()==1)
     {
       sprintf(s, "%02d.%02d.%02d%02d.%02d.%02d%4.0f%2.0f%2.0f",
               hour(t), minute(t), second(t), day(t), month(t), year(t)-2000, PNN, RH, T);
-      blink_on = true;  
+      blink_on = true;
     }
     else
       sprintf(s, "%02d%02d%02d%02d.%02d.%02d12345678",
@@ -135,7 +156,7 @@ void loop()
   if (etp_blink.enough_time() && blink_on && whc.status()==1)
   {
     sprintf(s, "%02d%02d",
-                hour(t), minute(t));                
+                hour(t), minute(t));
     m7.print(s);
     blink_on = false;
   }
