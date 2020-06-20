@@ -8,11 +8,14 @@
 #include <WiFiUdp.h>
 #include "TimeLib.h"
 
-#include "HDC1080.h"
-#include "CCS811.h"
+//#include "HDC1080.h"
+//#include "CCS811.h"
+#include <Wire.h>
+#include "SparkFunBME280.h"
 #include "BH1750.h"
 
 WiHomeComm whc(false); // argument turns WiHome UDP communication with WiHome hub off
+
 
 SignalLED led(PIN_LED,SLED_BLINK_FAST_1,PIN_LED_ACTIVE_LOW);
 NoBounceButtons nbb;
@@ -26,13 +29,20 @@ time_t t, t_last;
 MultiDisp7 m7(display_count, addr, type, subdigit);
 
 // Objects and variables for sensors:
-HDC1080 hdc;
-float T,RH;
-CCS811 ccs;
-unsigned int CO2, TVOC;
+//HDC1080 hdc;
+//float T,RH;
+//CCS811 ccs;
+//unsigned int CO2, TVOC;
+BME280 bme;
+float T,RH,P,TK,PN,PNN;
 BH1750 bh;
 unsigned int LX, LX_dim;
 
+bool timeset = false;
+EnoughTimePassed etp_timeset(3600*1000); // ms
+EnoughTimePassed etp_sensors(15*1000); // ms
+EnoughTimePassed etp_blink(500); // ms
+bool blink_on = false;
 
 void setup()
 {
@@ -43,6 +53,14 @@ void setup()
     Serial.end();
   Serial.println();
   delay(100);
+  // Initialize BME280 sensor:
+  Wire.begin(14,2);
+  bme.setI2CAddress(0x76);
+  if (bme.beginI2C() == false) //Begin communication over I2C
+  {
+    Serial.println("The sensor did not respond. Please check wiring.");
+    while(1); //Freeze
+  }
   // Telling WiHomeComm library which led (library SignaleLED) to use as status led:
   whc.set_status_led(&led);
   // Creating debounced button input on pin PIN_BUTTON:
@@ -53,7 +71,7 @@ void setup()
   m7.print("boot");
   // Set internal clock and timezone:
   timeClient.begin();
-  timeClient.setTimeOffset(-5*3600); // Easter Timezone in the U.S.: GMT-5h
+  timeClient.setTimeOffset(2*3600); // Mitteleuropäische Sommerzeit
   t_last = timeClient.getEpochTime();
 
 }
@@ -61,46 +79,65 @@ void setup()
 
 void loop()
 {
+  char s[20];
+  
   // Handling routines for various libraries used:
   whc.check();
   nbb.check();
   led.check();
 
-  if (whc.status()==1)
-    timeClient.update();
+  if (whc.status()==1 && (timeset == false || etp_timeset.enough_time()))
+  {
+    Serial.printf("Getting time from NTP server.\n");
+    timeset = timeClient.update();
+  }
   t = timeClient.getEpochTime();
 
   if (t!=t_last)
   {
     t_last = t;
+    etp_blink.event();
+    
     LX = bh.read();
-    LX_dim = LX*0.1+1;
+    LX_dim = LX*0.4+1;//Pink 0.2  Blau 0.7 Grün 0.5 Hellgrün 0.2 Gelb 0.1 Orange 0.2 Rot 0.7
     if (LX_dim>255)
       LX_dim=255;
     m7.dim(LX_dim);
-
-    hdc.read(&T, &RH);
-    Serial.printf("LX = %d  Lx_dim = %d\n", LX, LX_dim);
-    // ccs.set_env_data(T, RH);
-    ccs.read(&CO2, &TVOC);
-
-    char s[20];
+    
+    if (etp_sensors.enough_time())
+    {
+//      hdc.read(&T, &RH);
+      T = bme.readTempC();
+      T = T-1;
+      TK = 273.15+T;
+      RH = bme.readFloatHumidity();
+      P = bme.readFloatPressure()/100;
+      P = P+1;
+      PN = TK/(TK+0.0065*635);
+      PNN = P*pow(PN,-5.255);
+      Serial.printf("T = %1.1f  RH = %2.1f\n  PNN = %4.0f", T, RH, PNN);
+//      ccs.set_env_data(T, RH);
+//      ccs.read(&CO2, &TVOC);
+    }
+    
     if (whc.status()==1)
     {
-      if (int(second(t)/5) % 2)
-        sprintf(s, "%02d%02d%02d%02d.%02d.%02d%2.0f%cC%2.0frH",
-                hour(t), minute(t), second(t), day(t), month(t), year(t)-2000,
-                T, 176, RH);
-      else
-        sprintf(s, "%02d%02d%02d%02d.%02d.%02d%4d%4d",
-                hour(t), minute(t), second(t), day(t), month(t), year(t)-2000,
-                CO2, TVOC);
+      sprintf(s, "%02d.%02d.%02d%02d.%02d.%02d%4.0f%2.0f%2.0f",
+              hour(t), minute(t), second(t), day(t), month(t), year(t)-2000, PNN, RH, T);
+      blink_on = true;  
     }
     else
-      sprintf(s, "%02d%02d%02d%02d.%02d.%02d  noLAn ",
+      sprintf(s, "%02d%02d%02d%02d.%02d.%02d12345678",
               hour(t), minute(t), second(t), day(t), month(t), year(t)-2000);
     Serial.println(s);
     m7.print(s);
+  }
+  if (etp_blink.enough_time() && blink_on && whc.status()==1)
+  {
+    sprintf(s, "%02d%02d",
+                hour(t), minute(t));                
+    m7.print(s);
+    blink_on = false;
   }
 
   // React to button actions:
