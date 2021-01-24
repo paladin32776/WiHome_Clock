@@ -54,6 +54,11 @@ void setup()
     Serial.begin(115200);
   else
     Serial.end();
+  for (int n=0; n<100; n++)
+  {
+    Serial.print(".");
+    delay(20);
+  }
   Serial.println();
   delay(100);
   // Initialize BME280 sensor:
@@ -75,7 +80,6 @@ void setup()
   timeClient.begin();
   // timeClient.setTimeOffset(2*3600); // Mitteleuropäische Sommerzeit
   t_last = timeClient.getEpochTime();
-
 }
 
 bool DST(time_t t)
