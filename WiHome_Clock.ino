@@ -37,6 +37,7 @@ MultiDisp7 m7(display_count, addr, type, subdigit);
 //unsigned int CO2, TVOC;
 BME280 bme;
 float T,RH,P,TK,PN,PNN;
+bool bme_ok = false;
 BH1750 bh;
 unsigned int LX, LX_dim;
 
@@ -58,11 +59,10 @@ void setup()
   // Initialize BME280 sensor:
   Wire.begin(14,2);
   bme.setI2CAddress(0x76);
-  if (bme.beginI2C() == false) //Begin communication over I2C
-  {
+  if (bme.beginI2C() == true) //Begin communication over I2C
+    bme_ok = true;
+  else
     Serial.println("The sensor did not respond. Please check wiring.");
-    while(1); //Freeze
-  }
   // Telling WiHomeComm library which led (library SignaleLED) to use as status led:
   whc.set_status_led(&led);
   // Creating debounced button input on pin PIN_BUTTON:
@@ -128,13 +128,21 @@ void loop()
     if (etp_sensors.enough_time())
     {
 //      hdc.read(&T, &RH);
-      T = bme.readTempC();
-      T = T-1;
+      if (bme_ok)
+      {
+        T = bme.readTempC();
+        RH = bme.readFloatHumidity();
+        P = bme.readFloatPressure()/100;
+      }
+      else
+      {
+        T = 0;
+        RH = 0;
+        P = 0;
+      }
+      // Math:
       TK = 273.15+T;
-      RH = bme.readFloatHumidity();
-      P = bme.readFloatPressure()/100;
-      P = P+1;
-      PN = TK/(TK+0.0065*635);
+      PN = TK/(TK+0.0065*640);
       PNN = P*pow(PN,-5.255);
       Serial.printf("T = %1.1f  RH = %2.1f\n  PNN = %4.0f", T, RH, PNN);
 //      ccs.set_env_data(T, RH);
@@ -143,13 +151,17 @@ void loop()
 
     if (whc.status()==1)
     {
-      sprintf(s, "%02d.%02d.%02d%02d.%02d.%02d%4.0f%2.0f%2.0f",
-              hour(t), minute(t), second(t), day(t), month(t), year(t)-2000, PNN, RH, T);
+      if (bme_ok==true)
+        sprintf(s, "%02d.%02d.%02d%02d.%02d.%02d%4.0f%2.0f%2.0f",
+                hour(t), minute(t), second(t), day(t), month(t), year(t)%100, PNN, RH, T);
+      else
+        sprintf(s, "%02d.%02d.%02d%02d.%02d.%02d5En5FA1L",
+                hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
       blink_on = true;
     }
     else
-      sprintf(s, "%02d%02d%02d%02d.%02d.%02d12345678",
-              hour(t), minute(t), second(t), day(t), month(t), year(t)-2000);
+      sprintf(s, "%02d%02d%02d%02d.%02d.%02dconn    ",
+              hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
     Serial.println(s);
     m7.print(s);
   }
