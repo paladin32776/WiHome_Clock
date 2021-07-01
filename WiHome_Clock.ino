@@ -1,3 +1,8 @@
+// Board: "NodeMCU 1.0 (ESP-12E Module)"
+// Flash Size: "4MB (FS:1MB OTA:1019KB)"
+
+//Letztes Update 1.7.2021
+
 #include "WiHomeComm.h"
 #include "NoBounceButtons.h"
 #include "SignalLED.h"
@@ -42,7 +47,7 @@ BH1750 bh;
 unsigned int LX, LX_dim;
 
 bool timeset = false;
-EnoughTimePassed etp_timeset(3600*1000); // ms
+EnoughTimePassed etp_timeset(300*1000); // ms
 EnoughTimePassed etp_sensors(15*1000); // ms
 EnoughTimePassed etp_blink(500); // ms
 bool blink_on = false;
@@ -74,8 +79,8 @@ void setup()
   button = nbb.create(PIN_BUTTON);
   // Set 7-Segment display to 100% brightness, overwire all digits with spaces, and then write "boot":
   m7.dim(100);
-  m7.print("                    ");
-  m7.print("boot");
+  m7.print((char*)"                    ");
+  m7.print((char*)"boot");
   // Set internal clock and timezone:
   timeClient.begin();
   // timeClient.setTimeOffset(2*3600); // Mitteleuropäische Sommerzeit
@@ -91,7 +96,7 @@ bool DST(time_t t)
                ( month(t)==3 && lastweekinMarch && weekday(t)>1 ) ||
                ( month(t)==3 && lastweekinMarch && weekday(t)==1 && hour(t)>=1 ) ||
                ( month(t)==10 && notlastweekinOctober ) ||
-               ( month(t)==10 && ~notlastweekinOctober && weekday(t)==1 && hour(t)<1 );
+               ( month(t)==10 && (!notlastweekinOctober) && weekday(t)==1 && hour(t)<1 );
 
   return isDST;
 }
@@ -124,7 +129,7 @@ void loop()
     etp_blink.event();
 
     LX = bh.read();
-    LX_dim = LX*0.4+1;//Pink 0.2  Blau 0.7 Grün 0.5 Hellgrün 0.2 Gelb 0.1 Orange 0.2 Rot 0.7
+    LX_dim = LX*0.5+1; //Hellgrün 0.1 Gelb 0.1 Pink 0.3 Orange 0.3 Dunkelgrün 0.5 Dunkelblau 0.7 Dunkelrot 0.7
     if (LX_dim>255)
       LX_dim=255;
     m7.dim(LX_dim);
@@ -145,8 +150,9 @@ void loop()
         P = 0;
       }
       // Math:
+      T=T-2;
       TK = 273.15+T;
-      PN = TK/(TK+0.0065*640);
+      PN = TK/(TK+0.0065*635 );
       PNN = P*pow(PN,-5.255);
       Serial.printf("T = %1.1f  RH = %2.1f\n  PNN = %4.0f", T, RH, PNN);
 //      ccs.set_env_data(T, RH);
@@ -164,8 +170,14 @@ void loop()
       blink_on = true;
     }
     else
-      sprintf(s, "%02d%02d%02d%02d.%02d.%02dconn    ",
-              hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
+    {
+      if (whc.softAPmode)
+        sprintf(s, "%02d%02d%02d%02d.%02d.%02d5oFtAP  ",
+                hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
+      else
+        sprintf(s, "%02d%02d%02d%02d.%02d.%02dconn    ",
+                hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
+    }
     Serial.println(s);
     m7.print(s);
   }
