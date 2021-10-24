@@ -42,7 +42,7 @@ BH1750 bh;
 unsigned int LX, LX_dim;
 
 bool timeset = false;
-EnoughTimePassed etp_timeset(3600*1000); // ms
+EnoughTimePassed etp_timeset(10*1000); // ms
 EnoughTimePassed etp_sensors(15*1000); // ms
 EnoughTimePassed etp_blink(500); // ms
 bool blink_on = false;
@@ -85,13 +85,14 @@ void setup()
 bool DST(time_t t)
 {
   bool lastweekinMarch = ( month(t)==3 ) && ( day(t)+(8-weekday(t))>31 );
-  bool notlastweekinOctober = ( month(t)==10 ) && ( day(t)+(8-weekday(t))<31 );
+  // bool notlastweekinOctober = ( month(t)==10 ) && ( day(t)+(8-weekday(t))<31 );
+  bool lastweekinOctober = ( month(t)==10 ) && ( day(t)+(8-weekday(t))>31 );
 
   bool isDST = ( month(t)>3 && month(t)<10 ) ||
                ( month(t)==3 && lastweekinMarch && weekday(t)>1 ) ||
-               ( month(t)==3 && lastweekinMarch && weekday(t)==1 && hour(t)>=1 ) ||
-               ( month(t)==10 && notlastweekinOctober ) ||
-               ( month(t)==10 && ~notlastweekinOctober && weekday(t)==1 && hour(t)<1 );
+               ( month(t)==3 && lastweekinMarch && weekday(t)==1 && hour(t)>=2 ) ||
+               ( month(t)==10 && ~lastweekinOctober ) ||
+               ( month(t)==10 && lastweekinOctober && weekday(t)==1 && hour(t)<3 );
 
   return isDST;
 }
@@ -109,14 +110,32 @@ void loop()
   if (whc.status()==1 && (timeset == false || etp_timeset.enough_time()))
   {
     Serial.printf("Getting time from NTP server.\n");
+    Serial.printf("BEFORE: %02d.%02d.%02d  %02d.%02d.%02d\n",
+            hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
+    // Update time from NTP server:
     timeset = timeClient.update();
+    // Get time:
+    t = timeClient.getEpochTime();
+    Serial.printf("NTP:    %02d.%02d.%02d  %02d.%02d.%02d\n",
+            hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
+    // Accouting for timezone and DST
+    t += TIMEZONE_OFFSET*3600;
+    if (DST(t))
+      t += 3600;
+    Serial.printf("DST:    %02d.%02d.%02d  %02d.%02d.%02d\n",
+            hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
   }
-  t = timeClient.getEpochTime();
-
-  // Accouting for timezone and DST
-  t += TIMEZONE_OFFSET*3600;
-  if (DST(t))
-    t += 3600;
+  else
+  {
+    // Get time:
+    t = timeClient.getEpochTime();
+    // Accouting for timezone and DST
+    t += TIMEZONE_OFFSET*3600;
+    if (DST(t))
+      t += 3600;
+  }
+  if (abs(t-t_last)>3000)
+    Serial.printf("ERROR\n");
 
   if (t!=t_last)
   {
@@ -148,7 +167,7 @@ void loop()
       TK = 273.15+T;
       PN = TK/(TK+0.0065*640);
       PNN = P*pow(PN,-5.255);
-      Serial.printf("T = %1.1f  RH = %2.1f\n  PNN = %4.0f", T, RH, PNN);
+      // Serial.printf("T = %1.1f  RH = %2.1f\n  PNN = %4.0f", T, RH, PNN);
 //      ccs.set_env_data(T, RH);
 //      ccs.read(&CO2, &TVOC);
     }
@@ -166,7 +185,7 @@ void loop()
     else
       sprintf(s, "%02d%02d%02d%02d.%02d.%02dconn    ",
               hour(t), minute(t), second(t), day(t), month(t),  year(t)%100);
-    Serial.println(s);
+    // Serial.println(s);
     m7.print(s);
   }
   if (etp_blink.enough_time() && blink_on && whc.status()==1)
