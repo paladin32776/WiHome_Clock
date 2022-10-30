@@ -91,8 +91,8 @@ bool DST(time_t t)
   bool isDST = ( month(t)>3 && month(t)<10 ) ||
                ( month(t)==3 && lastweekinMarch && weekday(t)>1 ) ||
                ( month(t)==3 && lastweekinMarch && weekday(t)==1 && hour(t)>=2 ) ||
-               ( month(t)==10 && ~lastweekinOctober ) ||
-               ( month(t)==10 && lastweekinOctober && weekday(t)==1 && hour(t)<3 );
+               ( month(t)==10 && !lastweekinOctober ) ||
+               ( month(t)==10 && lastweekinOctober && weekday(t)==1 && hour(t)<2 );
 
   return isDST;
 }
