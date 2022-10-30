@@ -14,10 +14,11 @@
 #include "SparkFunBME280.h"
 #include "BH1750.h"
 
-#define TIMEZONE_OFFSET 1
+#define TIMEZONE_OFFSET 1   // Zeitverschiebung gegen UTC
+#define ALTITUDE 640        // Hoehe ueber NN
+#define BRIGHTNESS 0.6      // Hellgrün: 0.1, Gelb: 0.1, Pink: 0.3, Orange: 0.3, Dunkelgrün: 0.5, Dunkelblau: 0.7, Dunkelrot: 0.7
 
 WiHomeComm whc(false); // argument turns WiHome UDP communication with WiHome hub off
-
 
 SignalLED led(PIN_LED,SLED_BLINK_FAST_1,PIN_LED_ACTIVE_LOW);
 NoBounceButtons nbb;
@@ -85,7 +86,6 @@ void setup()
 bool DST(time_t t)
 {
   bool lastweekinMarch = ( month(t)==3 ) && ( day(t)+(8-weekday(t))>31 );
-  // bool notlastweekinOctober = ( month(t)==10 ) && ( day(t)+(8-weekday(t))<31 );
   bool lastweekinOctober = ( month(t)==10 ) && ( day(t)+(8-weekday(t))>31 );
 
   bool isDST = ( month(t)>3 && month(t)<10 ) ||
@@ -143,7 +143,7 @@ void loop()
     etp_blink.event();
 
     LX = bh.read();
-    LX_dim = LX*0.4+1;//Pink 0.2  Blau 0.7 Grün 0.5 Hellgrün 0.2 Gelb 0.1 Orange 0.2 Rot 0.7
+    LX_dim = LX*BRIGHTNESS+1;
     if (LX_dim>255)
       LX_dim=255;
     m7.dim(LX_dim);
@@ -165,7 +165,7 @@ void loop()
       }
       // Math:
       TK = 273.15+T;
-      PN = TK/(TK+0.0065*640);
+      PN = TK/(TK+0.0065*ALTITUDE );
       PNN = P*pow(PN,-5.255);
       // Serial.printf("T = %1.1f  RH = %2.1f\n  PNN = %4.0f", T, RH, PNN);
 //      ccs.set_env_data(T, RH);
